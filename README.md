@@ -4,9 +4,11 @@ Génarateur de panneaux "La région aide ses communes" que l'on retrouve les lon
 
 Les panneaux avec un texte personnalisé sont exportés aux format svg.
 
-<img src=panneau_1.svg>
-<img src=panneau_2.svg>
-<img src=panneau_3.svg>
+<div class="row">
+    <img src=panneau_1.svg>
+    <img src=panneau_2.svg>
+    <img src=panneau_3.svg>
+</div>
 
 ## Requirements
 
