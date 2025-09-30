@@ -2,7 +2,7 @@
 
 Générateur de panneaux `La région aide ses communes` que l'on retrouve le long des routes de notre belle région Auvergne-Rhône-Alpes.
 
-Les panneaux avec un texte personnalisé sont exportés au format SVG et peuvent être téléchargés individuellement ou en lot.
+Les panneaux avec un texte personnalisé sont exportés aux formats SVG et PNG et peuvent être téléchargés individuellement ou en lot.
 
 <div class="row">
     <img src="panneau_1.svg" width="200">

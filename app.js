@@ -63,6 +63,39 @@ class AuraFarmerApp {
         document.getElementById('scale-value').textContent = `${scaleValue}px`;
     }
 
+    // Convert SVG to PNG
+    async svgToPng(svgElement, scale) {
+        return new Promise((resolve, reject) => {
+            const svgString = this.panelGenerator.svgToString(svgElement);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            // Set canvas size
+            const heightUp = scale;
+            const heightDown = 0.32 * scale;
+            canvas.width = heightUp;
+            canvas.height = heightUp + heightDown;
+            
+            img.onload = () => {               
+                // Draw the SVG
+                ctx.drawImage(img, 0, 0);
+                
+                // Convert to PNG blob
+                canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, 'image/png');
+            };
+            
+            img.onerror = reject;
+            
+            // Create data URL from SVG
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+            img.src = url;
+        });
+    }
+
     generatePanels() {
         const textInput = document.getElementById('text-input');
         const scaleInput = document.getElementById('scale-input');
@@ -86,21 +119,27 @@ class AuraFarmerApp {
 
         this.showLoading('generate-btn');
         
-        setTimeout(() => {
+        setTimeout(async () => {
             let successCount = 0;
             let errorCount = 0;
             const errors = [];
             
-            texts.forEach((text, index) => {
+            for (let index = 0; index < texts.length; index++) {
+                const text = texts[index];
                 try {
                     const cleanText = text.trim();
                     const svgElement = this.panelGenerator.generatePanel(cleanText, scale);
+                    
+                    // Generate PNG version
+                    const pngBlob = await this.svgToPng(svgElement, scale);
+                    
                     const panel = {
                         id: Date.now() + index,
                         text: cleanText,
                         scale: scale,
                         svg: svgElement,
-                        svgString: this.panelGenerator.svgToString(svgElement)
+                        svgString: this.panelGenerator.svgToString(svgElement),
+                        pngBlob: pngBlob
                     };
 
                     this.panels.push(panel);
@@ -111,7 +150,7 @@ class AuraFarmerApp {
                     errors.push(`"${text.trim()}": ${error.message}`);
                     errorCount++;
                 }
-            });
+            }
 
             this.updateUI();
             
@@ -165,8 +204,11 @@ class AuraFarmerApp {
                 <div class="panel-size">${panel.scale}px</div>
             </div>
             <div class="panel-actions">
-                <button class="btn btn-download btn-small" onclick="app.downloadPanel(${panel.id})">
-                    📥 Télécharger
+                <button class="btn btn-download btn-small" onclick="app.downloadPanel(${panel.id}, 'svg')">
+                    📥 SVG
+                </button>
+                <button class="btn btn-download btn-small" onclick="app.downloadPanel(${panel.id}, 'png')">
+                    📥 PNG
                 </button>
                 <button class="btn btn-clear btn-small" onclick="app.removePanel(${panel.id})">
                     🗑️ Supprimer
@@ -180,13 +222,19 @@ class AuraFarmerApp {
         container.appendChild(panelElement);
     }
 
-    downloadPanel(panelId) {
+    downloadPanel(panelId, format = 'svg') {
         const panel = this.panels.find(p => p.id === panelId);
         if (!panel) return;
 
-        const filename = this.generateFilename(panel.text);
-        this.downloadSVG(panel.svgString, filename);
-        this.showMessage('Panneau téléchargé !', 'success');
+        const filename = this.generateFilename(panel.text, null, format);
+        
+        if (format === 'png') {
+            this.downloadPNG(panel.pngBlob, filename);
+        } else {
+            this.downloadSVG(panel.svgString, filename);
+        }
+        
+        this.showMessage(`Panneau ${format.toUpperCase()} téléchargé !`, 'success');
     }
 
     removePanel(panelId) {
@@ -213,15 +261,20 @@ class AuraFarmerApp {
                 const zip = new JSZip();
                 
                 this.panels.forEach((panel, index) => {
-                    const filename = this.generateFilename(panel.text, index + 1);
-                    zip.file(filename, panel.svgString);
+                    // Add SVG version
+                    const svgFilename = this.generateFilename(panel.text, index + 1, 'svg');
+                    zip.file(svgFilename, panel.svgString);
+                    
+                    // Add PNG version
+                    const pngFilename = this.generateFilename(panel.text, index + 1, 'png');
+                    zip.file(pngFilename, panel.pngBlob);
                 });
                 
                 const content = await zip.generateAsync({type: 'blob'});
                 const timestamp = new Date().toISOString().slice(0, 10);
                 saveAs(content, `panneaux-aura-${timestamp}.zip`);
                 
-                this.showMessage('Tous les panneaux ont été téléchargés !', 'success');
+                this.showMessage('Tous les panneaux (SVG + PNG) ont été téléchargés !', 'success');
             } catch (error) {
                 this.showMessage('Erreur lors du téléchargement.', 'error');
             } finally {
@@ -264,7 +317,7 @@ class AuraFarmerApp {
         }
     }
 
-    generateFilename(text, index = null) {
+    generateFilename(text, index = null, format = 'svg') {
         // Clean text for filename
         let filename = text
             .replace(/[^a-zA-Z0-9\s\-_]/g, '')
@@ -280,12 +333,25 @@ class AuraFarmerApp {
             filename = `${index.toString().padStart(2, '0')}-${filename}`;
         }
         
-        return `${filename}.svg`;
+        const extension = format === 'png' ? 'png' : 'svg';
+        return `${filename}.${extension}`;
     }
 
     downloadSVG(svgString, filename) {
         const blob = new Blob([svgString], { type: 'image/svg+xml' });
         const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    downloadPNG(pngBlob, filename) {
+        const url = URL.createObjectURL(pngBlob);
         
         const a = document.createElement('a');
         a.href = url;
