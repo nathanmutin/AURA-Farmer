@@ -69,10 +69,10 @@ class PanelGenerator {
     // Check for common misspellings of "La Région" and suggest correction
     checkLaRegionSpelling(text) {
         const correctSpelling = "La Région";
-        const pattern = /^la r[eé]gion/;
+        const pattern = /^la r[eé]gion/i;
 
         // Check if pattern matches
-        if (pattern.test(text)) {
+        if (pattern.test(text) && text !== correctSpelling) {
             return {
                 hasError: true,
                     originalText: text,
