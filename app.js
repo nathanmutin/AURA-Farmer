@@ -288,6 +288,7 @@ class AuraFarmerApp {
         // Clone SVG and add to display
         const svgClone = panel.svg.cloneNode(true);
         
+        // Base actions (download + remove)
         panelElement.innerHTML = `
             <div class="panel-svg-container"></div>
             <div class="panel-info">
@@ -295,17 +296,36 @@ class AuraFarmerApp {
                 <div class="panel-size">${panel.scale}px</div>
             </div>
             <div class="panel-actions">
-                <button class="btn btn-download btn-small" onclick="app.downloadPanel(${panel.id}, 'svg')">
-                    📥 SVG
-                </button>
                 <button class="btn btn-download btn-small" onclick="app.downloadPanel(${panel.id}, 'png')">
                     📥 PNG
+                </button>
+                <button class="btn btn-download btn-small" onclick="app.downloadPanel(${panel.id}, 'svg')">
+                    📥 SVG
                 </button>
                 <button class="btn btn-clear btn-small" onclick="app.removePanel(${panel.id})">
                     🗑️ Supprimer
                 </button>
             </div>
         `;
+
+        // Add share button only when Web Share API is available (mobile)
+        try {
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const filename = this.generateFilename(panel.text, null, 'png');
+            const file = new File([panel.pngBlob], filename, { type: 'image/png' });
+            if (isMobile && navigator.canShare({ files: [file] })) {
+                const actions = panelElement.querySelector('.panel-actions');
+                const shareBtn = document.createElement('button');
+                shareBtn.className = 'btn btn-share btn-small';
+                shareBtn.innerHTML = '📱 Partager';
+                shareBtn.addEventListener('click', () => this.sharePanel(panel.id));
+                // Insert the share button before the remove button
+                const removeBtn = actions.querySelector('.btn-clear');
+                actions.insertBefore(shareBtn, removeBtn);
+            }
+        } catch (e) {
+            // If accessing navigator throws for any reason, just don't add the share button
+        }
 
         // Add SVG to container
         panelElement.querySelector('.panel-svg-container').appendChild(svgClone);
@@ -319,41 +339,31 @@ class AuraFarmerApp {
         if (!panel) return;
 
         const filename = this.generateFilename(panel.text, null, format);
-        
-        // Check if we're on mobile and can use Web Share API for PNG files
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
-        if (format === 'png' && isMobile && navigator.share && navigator.canShare) {
-            // Try to share on mobile (saves to gallery)
-            try {
-                const file = new File([panel.pngBlob], filename, { type: 'image/png' });
-                if (navigator.canShare({ files: [file] })) {
-                    navigator.share({
-                        title: 'Panneau AURA',
-                        text: 'Panneau généré avec AURA Farmer',
-                        files: [file]
-                    }).then(() => {
-                        this.showMessage('Panneau PNG partagé ! 📱', 'success');
-                    }).catch(() => {
-                        // Fallback to download if sharing fails
-                        this.downloadPNG(panel.pngBlob, filename);
-                        this.showMessage('Panneau PNG téléchargé !', 'success');
-                    });
-                    return;
-                }
-            } catch (error) {
-                console.log('Partage échoué, téléchargement normal');
-            }
-        }
-        
-        // Standard download for SVG or when sharing is not available
+
+        // Standard download for SVG or PNG
         if (format === 'png') {
             this.downloadPNG(panel.pngBlob, filename);
         } else {
             this.downloadSVG(panel.svgString, filename);
         }
-        
+
         this.showMessage(`Panneau ${format.toUpperCase()} téléchargé !`, 'success');
+    }
+
+    // Share a panel via Web Share API (mobile). Falls back to download when share not available.
+    async sharePanel(panelId) {
+        const panel = this.panels.find(p => p.id === panelId);
+        if (!panel) return;
+
+        const filename = this.generateFilename(panel.text, null, 'png');
+        const file = new File([panel.pngBlob], filename, { type: 'image/png' });
+        await navigator.share({
+            title: 'Panneau AURA',
+            text: 'Panneau généré avec AURA Farmer',
+            files: [file]
+        });
+        this.showMessage('Panneau PNG partagé ! 📱', 'success');
+        return;
     }
 
     removePanel(panelId) {
