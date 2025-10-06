@@ -66,6 +66,24 @@ class PanelGenerator {
         return g;
     }
 
+    // Check for common misspellings of "La Région" and suggest correction
+    checkLaRegionSpelling(text) {
+        const correctSpelling = "La Région";
+        const pattern = /^la r[eé]gion/i;
+        const correctSpellingPattern = /^La Région/;
+
+        // Check if pattern matches and text does not begin with correct spelling
+        if (pattern.test(text) && correctSpellingPattern.test(text) === false) {
+            return {
+                hasError: true,
+                    originalText: text,
+                    correctedText: text.replace(pattern, correctSpelling),
+                    suggestion: correctSpelling
+                };
+            }
+        return { hasError: false };
+    }
+
     // Wrap text into the optimal number of lines
     wrapText(text) {
         const maxFontSize = 0.09;

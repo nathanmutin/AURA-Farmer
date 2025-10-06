@@ -117,6 +117,97 @@ class AuraFarmerApp {
             return;
         }
 
+        // Check for "La Région" spelling errors
+        const spellCheckResults = [];
+        let hasSpellingErrors = false;
+        
+        texts.forEach((text, index) => {
+            const result = this.panelGenerator.checkLaRegionSpelling(text);
+            spellCheckResults.push(result);
+            if (result.hasError) {
+                hasSpellingErrors = true;
+            }
+        });
+        
+        // If there are spelling errors, show warning and ask for confirmation
+        if (hasSpellingErrors) {
+            this.showSpellingWarning(spellCheckResults, () => {
+                this.processPanelGeneration(spellCheckResults.map(r => r.correctedText), scale, textInput);
+            }, () => {
+                this.processPanelGeneration(texts, scale, textInput);
+            });
+            return;
+        }
+        
+        // No spelling errors, proceed normally
+        this.processPanelGeneration(texts, scale, textInput);
+    }
+    
+    showSpellingWarning(spellCheckResults, onAccept, onOverride) {
+        const errorsFound = spellCheckResults.filter(r => r.hasError);
+        
+        // Populate corrections list
+        const correctionsList = document.getElementById('spelling-corrections');
+        correctionsList.innerHTML = '';
+        
+        errorsFound.forEach((error, index) => {
+            const correctionItem = document.createElement('div');
+            correctionItem.className = 'correction-item';
+            correctionItem.innerHTML = `
+                <span class="correction-original">"${this.escapeHtml(error.originalText)}"</span>
+                <span class="correction-arrow">→</span>
+                <span class="correction-fixed">"${this.escapeHtml(error.correctedText)}"</span>
+            `;
+            correctionsList.appendChild(correctionItem);
+        });
+        
+        // Show modal
+        const modal = document.getElementById('spelling-modal');
+        modal.classList.add('show');
+        
+        // Handle modal actions
+        const acceptBtn = document.getElementById('modal-accept');
+        const cancelBtn = document.getElementById('modal-cancel');
+        
+        const handleAccept = () => {
+            modal.classList.remove('show');
+            onAccept();
+            cleanup();
+        };
+        
+        const handleCancel = () => {
+            modal.classList.remove('show');
+            onOverride();
+            cleanup();
+        };
+        
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                handleCancel();
+            }
+        };
+        
+        const handleBackdropClick = (e) => {
+            if (e.target === modal) {
+                handleCancel();
+            }
+        };
+        
+        const cleanup = () => {
+            acceptBtn.removeEventListener('click', handleAccept);
+            cancelBtn.removeEventListener('click', handleCancel);
+            document.removeEventListener('keydown', handleEscape);
+            modal.removeEventListener('click', handleBackdropClick);
+        };
+        
+        // Add event listeners
+        acceptBtn.addEventListener('click', handleAccept);
+        cancelBtn.addEventListener('click', handleCancel);
+        document.addEventListener('keydown', handleEscape);
+        modal.addEventListener('click', handleBackdropClick);
+    }
+
+    processPanelGeneration(texts, scale, textInput) {
         this.showLoading('generate-btn');
         
         setTimeout(async () => {
@@ -197,6 +288,7 @@ class AuraFarmerApp {
         // Clone SVG and add to display
         const svgClone = panel.svg.cloneNode(true);
         
+        // Base actions (download + remove)
         panelElement.innerHTML = `
             <div class="panel-svg-container"></div>
             <div class="panel-info">
@@ -204,11 +296,11 @@ class AuraFarmerApp {
                 <div class="panel-size">${panel.scale}px</div>
             </div>
             <div class="panel-actions">
-                <button class="btn btn-download btn-small" onclick="app.downloadPanel(${panel.id}, 'svg')">
-                    📥 SVG
-                </button>
                 <button class="btn btn-download btn-small" onclick="app.downloadPanel(${panel.id}, 'png')">
                     📥 PNG
+                </button>
+                <button class="btn btn-download btn-small" onclick="app.downloadPanel(${panel.id}, 'svg')">
+                    📥 SVG
                 </button>
                 <button class="btn btn-clear btn-small" onclick="app.removePanel(${panel.id})">
                     🗑️ Supprimer
@@ -216,10 +308,30 @@ class AuraFarmerApp {
             </div>
         `;
 
+        // Add share button only when Web Share API is available (mobile)
+        try {
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const filename = this.generateFilename(panel.text, null, 'png');
+            const file = new File([panel.pngBlob], filename, { type: 'image/png' });
+            if (isMobile && navigator.canShare({ files: [file] })) {
+                const actions = panelElement.querySelector('.panel-actions');
+                const shareBtn = document.createElement('button');
+                shareBtn.className = 'btn btn-share btn-small';
+                shareBtn.innerHTML = '📱 Partager';
+                shareBtn.addEventListener('click', () => this.sharePanel(panel.id));
+                // Insert the share button before the remove button
+                const removeBtn = actions.querySelector('.btn-clear');
+                actions.insertBefore(shareBtn, removeBtn);
+            }
+        } catch (e) {
+            // If accessing navigator throws for any reason, just don't add the share button
+        }
+
         // Add SVG to container
         panelElement.querySelector('.panel-svg-container').appendChild(svgClone);
         
-        container.appendChild(panelElement);
+        // Insert at the beginning (most recent first)
+        container.insertBefore(panelElement, container.firstChild);
     }
 
     downloadPanel(panelId, format = 'svg') {
@@ -227,14 +339,31 @@ class AuraFarmerApp {
         if (!panel) return;
 
         const filename = this.generateFilename(panel.text, null, format);
-        
+
+        // Standard download for SVG or PNG
         if (format === 'png') {
             this.downloadPNG(panel.pngBlob, filename);
         } else {
             this.downloadSVG(panel.svgString, filename);
         }
-        
+
         this.showMessage(`Panneau ${format.toUpperCase()} téléchargé !`, 'success');
+    }
+
+    // Share a panel via Web Share API (mobile). Falls back to download when share not available.
+    async sharePanel(panelId) {
+        const panel = this.panels.find(p => p.id === panelId);
+        if (!panel) return;
+
+        const filename = this.generateFilename(panel.text, null, 'png');
+        const file = new File([panel.pngBlob], filename, { type: 'image/png' });
+        await navigator.share({
+            title: 'Panneau AURA',
+            text: 'Panneau généré avec AURA Farmer',
+            files: [file]
+        });
+        this.showMessage('Panneau PNG partagé ! 📱', 'success');
+        return;
     }
 
     removePanel(panelId) {

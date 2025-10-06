@@ -81,6 +81,23 @@
         </footer>
     </div>
 
+    <!-- Spelling Correction Modal -->
+    <div id="spelling-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>✏️ Correction suggérée</h3>
+            </div>
+            <div class="modal-body">
+                <div id="spelling-corrections" class="corrections-list"></div>
+                <p class="modal-question">Appliquer la correction ?</p>
+            </div>
+            <div class="modal-actions">
+                <button id="modal-accept" class="btn btn-primary">Oui, corriger</button>
+                <button id="modal-cancel" class="btn btn-secondary">Non, garder</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="utils.js"></script>
