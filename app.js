@@ -310,7 +310,8 @@ class AuraFarmerApp {
         // Add SVG to container
         panelElement.querySelector('.panel-svg-container').appendChild(svgClone);
         
-        container.appendChild(panelElement);
+        // Insert at the beginning (most recent first)
+        container.insertBefore(panelElement, container.firstChild);
     }
 
     downloadPanel(panelId, format = 'svg') {
