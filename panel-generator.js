@@ -76,32 +76,65 @@ class PanelGenerator {
         // Only handle literal \n sequences (backslash + n) for line breaks within panels
         if (text.includes('\\n')) {
             lines = text.split('\\n').map(line => line.trim());
-            // Choose font size based on the longest line
-            const longestLine = lines.reduce((a, b) => a.length > b.length ? a : b, "");
+            // Choose font size based on the longest line or number of lines
             // For maxFontSize, we can fit 19 characters per line and 2 lines
-            fontSize = maxFontSize * Math.min(1, Math.min(19 / longestLine.length, 2/lines.length));
-        } else {           
+            const longestLine = lines.reduce((a, b) => a.length > b.length ? a : b, "");
+            fontSize = maxFontSize * Math.min(1, 19 / longestLine.length, 2.6 / lines.length);
+        } else {
             const words = text.split(' ');
-            const mid = Math.floor(text.length / 2);
-            let word_index = 1;
-            let n_chars = words[0].length;
-            while (n_chars < mid && word_index < words.length) {
-                n_chars += words[word_index].length + 1;
-                word_index++;
-            }
 
-            let line1 = words.slice(0, word_index).join(' ');
-            let line2 = words.slice(word_index).join(' ');
+            // We try 1, 2, .. 5 lines
+            for (let nLines = 1; nLines <= 5; nLines++) {
+                // Divide the text into nLines parts
+                // Brute-force approach to find the optimal wrapping
+                // The optimal wrapping is the one that minimizes the lenght of the longest line
+                // and the lenght of the second longest line if there is a tie, etc.
+                
+                // We try all possible ways to split the sentence into nLines lines
+                // A way to wrap the text into nLines lines is defined by (nWords1, nWords2, ..., nWordsN)
+                // where nWords1 is the number of words in the first line, ...
+                // compositions function from utils.js
+                let bestComp = null;
+                let bestLineLengths = Array(nLines).fill(Infinity);
+                for (let comp of compositions(words.length, nLines)) {
+                    let lineLengths = [];
+                    for (let lineIdx = 0, wordIdx = 0; lineIdx < nLines; lineIdx++) {
+                        const line = words.slice(wordIdx, wordIdx + comp[lineIdx]).join(' ');
+                        lineLengths.push(line.length);
+                        wordIdx += comp[lineIdx];
+                    }
+                    // Sort line lengths in descending order for comparison
+                    lineLengths.sort((a, b) => b - a);
+                    // If this composition is better, we keep it
+                    for (let i = 0; i < nLines; i++) {
+                        if (lineLengths[i] > bestLineLengths[i]) break;
+                        // If equal, continue to next line
+                        if (lineLengths[i] < bestLineLengths[i]) {
+                            bestComp = comp;
+                            bestLineLengths = lineLengths;
+                            break;
+                        }
+                    }
+                }
 
-            if (line1.length > 19 || line2.length > 19) {
-                // On essaie avec un mot de moins dans la première ligne
-                line1 = words.slice(0, word_index - 1).join(' ');
-                line2 = words.slice(word_index - 1).join(' ');
-                if (line1.length > 19 || line2.length > 19) {
-                    throw new Error("Le texte est trop long pour tenir sur deux lignes.");
+                // Build the lines from the best composition found
+                lines = [];
+                for (let lineIdx = 0, wordIdx = 0; lineIdx < nLines; lineIdx++) {
+                    const line = words.slice(wordIdx, wordIdx + bestComp[lineIdx]).join(' ');
+                    lines.push(line);
+                    wordIdx += bestComp[lineIdx];
+                }
+
+                // Find the font size that fits the longest line
+                fontSize = maxFontSize * 19 / bestLineLengths[0];
+
+                // How many lines can we fit with this font size? = 2 / (fontSize / maxFontSize) 
+                // If it is more than nLines, we add one line, otherwise we found our solution
+                if (Math.floor(2.6 * maxFontSize / fontSize) <= nLines || nLines === 2) {
+                    fontSize = Math.min(fontSize, maxFontSize, maxFontSize * 2.6 / nLines);
+                    break;
                 }
             }
-            lines = [line1, line2];
         }
 
         return {
