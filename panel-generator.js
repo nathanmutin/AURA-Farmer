@@ -131,7 +131,7 @@ class PanelGenerator {
         const style = this.createSVGElement('style');
         style.textContent = `
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-            .panel-text { font-family: 'Inter', 'RF Dewi', Arial, sans-serif; }
+            .panel-text { font-family: 'Graphik', 'Inter', 'Segoe UI', Arial, sans-serif; }
         `;
         defs.appendChild(style);
         svg.appendChild(defs);
@@ -171,7 +171,7 @@ class PanelGenerator {
         const customText = this.createSVGElement('text', {
             x: heightUp / 2,
             y: heightUp + 0.4 * heightDown,
-            'font-family': "'Inter', 'RF Dewi', Arial, sans-serif",
+            'font-family': "'Graphik', 'Inter', 'Segoe UI', Arial, sans-serif",
             'font-weight': 'bold',
             'font-size': 0.09 * scale,
             fill: this.colors.black,
