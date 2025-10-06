@@ -66,7 +66,22 @@ class PanelGenerator {
         return g;
     }
 
-    // Wrap text into maximum 2 lines
+    // Check for common misspellings of "La Région" and suggest correction
+    checkLaRegionSpelling(text) {
+        const correctSpelling = "La Région";
+        const pattern = /^la r[eé]gion/;
+
+        // Check if pattern matches
+        if (pattern.test(text)) {
+            return {
+                hasError: true,
+                    originalText: text,
+                    correctedText: text.replace(pattern, correctSpelling),
+                    suggestion: correctSpelling
+                };
+            }
+        return { hasError: false };
+    }
     wrapText(text) {
         // Only handle literal \n sequences (backslash + n) for line breaks within panels
         if (text.includes('\\n')) {

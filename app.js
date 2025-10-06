@@ -117,6 +117,97 @@ class AuraFarmerApp {
             return;
         }
 
+        // Check for "La Région" spelling errors
+        const spellCheckResults = [];
+        let hasSpellingErrors = false;
+        
+        texts.forEach((text, index) => {
+            const result = this.panelGenerator.checkLaRegionSpelling(text);
+            spellCheckResults.push(result);
+            if (result.hasError) {
+                hasSpellingErrors = true;
+            }
+        });
+        
+        // If there are spelling errors, show warning and ask for confirmation
+        if (hasSpellingErrors) {
+            this.showSpellingWarning(spellCheckResults, () => {
+                this.processPanelGeneration(spellCheckResults.map(r => r.correctedText), scale, textInput);
+            }, () => {
+                this.processPanelGeneration(texts, scale, textInput);
+            });
+            return;
+        }
+        
+        // No spelling errors, proceed normally
+        this.processPanelGeneration(texts, scale, textInput);
+    }
+    
+    showSpellingWarning(spellCheckResults, onAccept, onOverride) {
+        const errorsFound = spellCheckResults.filter(r => r.hasError);
+        
+        // Populate corrections list
+        const correctionsList = document.getElementById('spelling-corrections');
+        correctionsList.innerHTML = '';
+        
+        errorsFound.forEach((error, index) => {
+            const correctionItem = document.createElement('div');
+            correctionItem.className = 'correction-item';
+            correctionItem.innerHTML = `
+                <span class="correction-original">"${this.escapeHtml(error.originalText)}"</span>
+                <span class="correction-arrow">→</span>
+                <span class="correction-fixed">"${this.escapeHtml(error.correctedText)}"</span>
+            `;
+            correctionsList.appendChild(correctionItem);
+        });
+        
+        // Show modal
+        const modal = document.getElementById('spelling-modal');
+        modal.classList.add('show');
+        
+        // Handle modal actions
+        const acceptBtn = document.getElementById('modal-accept');
+        const cancelBtn = document.getElementById('modal-cancel');
+        
+        const handleAccept = () => {
+            modal.classList.remove('show');
+            onAccept();
+            cleanup();
+        };
+        
+        const handleCancel = () => {
+            modal.classList.remove('show');
+            onOverride();
+            cleanup();
+        };
+        
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                handleCancel();
+            }
+        };
+        
+        const handleBackdropClick = (e) => {
+            if (e.target === modal) {
+                handleCancel();
+            }
+        };
+        
+        const cleanup = () => {
+            acceptBtn.removeEventListener('click', handleAccept);
+            cancelBtn.removeEventListener('click', handleCancel);
+            document.removeEventListener('keydown', handleEscape);
+            modal.removeEventListener('click', handleBackdropClick);
+        };
+        
+        // Add event listeners
+        acceptBtn.addEventListener('click', handleAccept);
+        cancelBtn.addEventListener('click', handleCancel);
+        document.addEventListener('keydown', handleEscape);
+        modal.addEventListener('click', handleBackdropClick);
+    }
+
+    processPanelGeneration(texts, scale, textInput) {
         this.showLoading('generate-btn');
         
         setTimeout(async () => {
