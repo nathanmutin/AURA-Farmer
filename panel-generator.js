@@ -148,7 +148,7 @@ class PanelGenerator {
 
                 // How many lines can we fit with this font size? = 2 / (fontSize / maxFontSize) 
                 // If it is more than nLines, we add one line, otherwise we found our solution
-                if (Math.floor(2.6 * maxFontSize / fontSize) <= nLines || nLines === 2) {
+                if (Math.floor(2.6 * maxFontSize / fontSize) <= nLines || nLines === 5) {
                     fontSize = Math.min(fontSize, maxFontSize, maxFontSize * 2.6 / nLines);
                     break;
                 }
