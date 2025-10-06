@@ -71,8 +71,8 @@ class PanelGenerator {
         const correctSpelling = "La Région";
         const pattern = /^la r[eé]gion/i;
 
-        // Check if pattern matches
-        if (pattern.test(text) && text !== correctSpelling) {
+        // Check if pattern matches and text does not begin with correct spelling
+        if (pattern.test(text) && text.startsWith(correctSpelling) === false) {
             return {
                 hasError: true,
                     originalText: text,
