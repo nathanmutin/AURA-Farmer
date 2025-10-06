@@ -320,6 +320,33 @@ class AuraFarmerApp {
 
         const filename = this.generateFilename(panel.text, null, format);
         
+        // Check if we're on mobile and can use Web Share API for PNG files
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        if (format === 'png' && isMobile && navigator.share && navigator.canShare) {
+            // Try to share on mobile (saves to gallery)
+            try {
+                const file = new File([panel.pngBlob], filename, { type: 'image/png' });
+                if (navigator.canShare({ files: [file] })) {
+                    navigator.share({
+                        title: 'Panneau AURA',
+                        text: 'Panneau généré avec AURA Farmer',
+                        files: [file]
+                    }).then(() => {
+                        this.showMessage('Panneau PNG partagé ! 📱', 'success');
+                    }).catch(() => {
+                        // Fallback to download if sharing fails
+                        this.downloadPNG(panel.pngBlob, filename);
+                        this.showMessage('Panneau PNG téléchargé !', 'success');
+                    });
+                    return;
+                }
+            } catch (error) {
+                console.log('Partage échoué, téléchargement normal');
+            }
+        }
+        
+        // Standard download for SVG or when sharing is not available
         if (format === 'png') {
             this.downloadPNG(panel.pngBlob, filename);
         } else {
