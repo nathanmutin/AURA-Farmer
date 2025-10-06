@@ -66,21 +66,21 @@ class PanelGenerator {
         return g;
     }
 
-    // Wrap text into maximum 2 lines
+    // Wrap text into the optimal number of lines
     wrapText(text) {
+        const maxFontSize = 0.09;
+
+        let fontSize = maxFontSize;
+        let lines = [];
+
         // Only handle literal \n sequences (backslash + n) for line breaks within panels
         if (text.includes('\\n')) {
-            const lines = text.split('\\n').map(line => line.trim());
-            if (lines.length > 2) {
-                throw new Error("Plusieurs retours à la ligne détectés. Un seul \\n est autorisé par panneau.");
-            }
-            return lines.length === 1 ? [lines[0], ""] : lines;
-        } else {
-            // Simple word wrapping for long text
-            if (text.length <= 19) {
-                return [text, ""];
-            }
-            
+            lines = text.split('\\n').map(line => line.trim());
+            // Choose font size based on the longest line
+            const longestLine = lines.reduce((a, b) => a.length > b.length ? a : b, "");
+            // For maxFontSize, we can fit 19 characters per line and 2 lines
+            fontSize = maxFontSize * Math.min(1, Math.min(19 / longestLine.length, 2/lines.length));
+        } else {           
             const words = text.split(' ');
             const mid = Math.floor(text.length / 2);
             let word_index = 1;
@@ -101,9 +101,13 @@ class PanelGenerator {
                     throw new Error("Le texte est trop long pour tenir sur deux lignes.");
                 }
             }
-            
-            return [line1, line2];
+            lines = [line1, line2];
         }
+
+        return {
+            fontSize: fontSize,
+            wrappedText: lines,
+        };
     }
 
     // Generate the complete panel
@@ -116,8 +120,7 @@ class PanelGenerator {
         const widthLaRegion = 0.71 * scale;
 
         // Wrap text
-        const wrappedText = this.wrapText(text);
-
+        const {fontSize, wrappedText} = this.wrapText(text);
         // Create SVG container
         const svg = this.createSVGElement('svg', {
             width: heightUp,
@@ -136,17 +139,59 @@ class PanelGenerator {
         defs.appendChild(style);
         svg.appendChild(defs);
 
+
         // Blue rounded rectangle (top)
+        // Contains the logo and region text
+        const blueRectGroup = this.createSVGElement('g');
         const blueRect = this.createSVGElement('path', {
             fill: this.colors.blue,
             d: `M${r + e/2},${e/2} h${heightUp - 2*r - e} a${r},${r} 0 0 1 ${r},${r} v${heightUp - r - e/2} h-${heightUp - e} v-${heightUp - r - e/2} a${r},${r} 0 0 1 ${r},-${r}`
         });
+        blueRectGroup.appendChild(blueRect);
+        blueRectGroup.appendChild(this.logo(heightLogo, (heightUp - heightLogo) / 2, 0.16 * scale));
+        blueRectGroup.appendChild(this.laRegion(widthLaRegion, (heightUp - widthLaRegion) / 2, 0.6 * scale));
+
 
         // White rounded rectangle (bottom)
+        // Contains the custom text
+        const whiteRectGroup = this.createSVGElement('g', {
+            textanchor: 'middle'
+        });
+        // White rectangle
         const whiteRect = this.createSVGElement('path', {
             fill: this.colors.white,
             d: `M${e/2},${heightUp} h${heightUp - e} v${heightDown - r - e/2} a${r},${r} 0 0 1 -${r},${r} h-${heightUp - 2*r - e} a${r},${r} 0 0 1 -${r},-${r} z`
         });
+        // Custom text - positioned in the center of the white rectangle
+        const textY = heightUp + heightDown / 2; // Middle of white rectangle
+        const customText = this.createSVGElement('text', {
+            x: heightUp / 2,
+            y: textY,
+            'font-family': "'Graphik', 'Inter', 'Segoe UI', Arial, sans-serif",
+            'font-weight': 'bold',
+            'font-size': fontSize * scale,
+            fill: this.colors.black,
+            'text-anchor': 'middle',
+            'dominant-baseline': 'middle',
+            class: 'panel-text'
+        });
+        
+        // Add tspans for each line of wrapped text
+        const lineHeight = fontSize * scale * 1.2;
+        const totalTextHeight = (wrappedText.length - 1) * lineHeight;
+        const firstLineY = -totalTextHeight / 2;
+        
+        for (let i = 0; i < wrappedText.length; i++) {
+            const tspan = this.createSVGElement('tspan', {
+                x: heightUp / 2,
+                dy: i === 0 ? firstLineY : lineHeight
+            });
+            tspan.textContent = wrappedText[i];
+            customText.appendChild(tspan);
+        }
+        whiteRectGroup.appendChild(whiteRect);
+        whiteRectGroup.appendChild(customText);
+
 
         // Grey border
         const border = this.createSVGElement('rect', {
@@ -161,45 +206,10 @@ class PanelGenerator {
             ry: r
         });
 
-        // Logo
-        const logoElement = this.logo(heightLogo, (heightUp - heightLogo) / 2, 0.16 * scale);
-
-        // Region text
-        const regionElement = this.laRegion(widthLaRegion, (heightUp - widthLaRegion) / 2, 0.6 * scale);
-
-        // Custom text
-        const customText = this.createSVGElement('text', {
-            x: heightUp / 2,
-            y: heightUp + 0.4 * heightDown,
-            'font-family': "'Graphik', 'Inter', 'Segoe UI', Arial, sans-serif",
-            'font-weight': 'bold',
-            'font-size': 0.09 * scale,
-            fill: this.colors.black,
-            'text-anchor': 'middle',
-            class: 'panel-text'
-        });
-
-        const tspan1 = this.createSVGElement('tspan', {
-            x: heightUp / 2
-        });
-        tspan1.textContent = wrappedText[0];
-
-        const tspan2 = this.createSVGElement('tspan', {
-            x: heightUp / 2,
-            dy: '1.2em'
-        });
-        tspan2.textContent = wrappedText[1];
-
-        customText.appendChild(tspan1);
-        customText.appendChild(tspan2);
-
         // Assemble SVG
-        svg.appendChild(blueRect);
-        svg.appendChild(whiteRect);
+        svg.appendChild(blueRectGroup);
+        svg.appendChild(whiteRectGroup);
         svg.appendChild(border);
-        svg.appendChild(logoElement);
-        svg.appendChild(regionElement);
-        svg.appendChild(customText);
 
         return svg;
     }
